@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo List</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    /* ── Add row ── */
+    .add-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .add-row label {
+      display: none; /* visually hidden, kept for accessibility */
+    }
+
+    .add-row input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .add-row input:focus { border-color: #4f8ef7; }
+
+    .add-row button {
+      padding: 10px 18px;
+      background: #4f8ef7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .add-row button:hover { background: #3a78e0; }
+
+    /* ── Todo list ── */
+    #todo-list { list-style: none; }
+
+    #todo-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    #todo-list li:last-child { border-bottom: none; }
+
+    .todo-text {
+      flex: 1;
+      font-size: 1rem;
+      color: #333;
+      word-break: break-word;
+    }
+
+    .todo-text.done {
+      text-decoration: line-through;
+      color: #aaa;
+    }
+
+    /* Edit input shown in-place */
+    .edit-input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #4f8ef7;
+      border-radius: 6px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .btn {
+      padding: 6px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .btn-edit   { background: #ffeaa7; color: #333; }
+    .btn-save   { background: #55efc4; color: #333; }
+    .btn-delete { background: #ff7675; color: white; }
+
+    .btn:hover { opacity: 0.85; }
+
+    #status {
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+      color: #888;
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Todo List</h1>
+
+    <!-- Add new todo -->
+    <div class="add-row">
+      <label for="new-todo">New todo</label>
+      <input id="new-todo" type="text" placeholder="Enter a todo..." />
+      <button onclick="addTodo()">Add</button>
+    </div>
+
+    <div id="status"></div>
+    <ul id="todo-list"></ul>
+  </div>
+
+  <script>
+    const API = 'http://localhost:3000/todos';
+
+    // ── helpers ──────────────────────────────────────────────
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    async function request(url, method = 'GET', body = null) {
+      const opts = {
+        method,
+        headers: { 'Content-Type': 'application/json' }
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(url, opts);
+      if (!res.ok) throw new Error(`${method} ${url} → ${res.status}`);
+      return res.json();
+    }
+
+    // ── render ───────────────────────────────────────────────
+    function render(todos) {
+      const list = document.getElementById('todo-list');
+      list.innerHTML = '';
+
+      if (!todos.length) {
+        list.innerHTML = '<li style="color:#aaa;font-size:.9rem">No todos yet. Add one above!</li>';
+        return;
+      }
+
+      todos.forEach(todo => {
+        const li = document.createElement('li');
+        li.dataset.id = todo.id;
+
+        // text span
+        const span = document.createElement('span');
+        span.className = 'todo-text' + (todo.done ? ' done' : '');
+        span.textContent = todo.title;
+
+        // edit button
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-edit';
+        editBtn.textContent = 'Edit';
+        editBtn.onclick = () => startEdit(li, todo);
+
+        // delete button
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-delete';
+        delBtn.textContent = 'Delete';
+        delBtn.onclick = () => deleteTodo(todo.id);
+
+        li.append(span, editBtn, delBtn);
+        list.appendChild(li);
+      });
+    }
+
+    // ── CRUD ─────────────────────────────────────────────────
+
+    async function loadTodos() {
+      try {
+        setStatus('Loading...');
+        const todos = await request(API);
+        render(todos);
+        setStatus('');
+      } catch (e) {
+        setStatus('Could not load todos. Is the backend running?');
+      }
+    }
+
+    async function addTodo() {
+      const input = document.getElementById('new-todo');
+      const title = input.value.trim();
+      if (!title) return;
+
+      try {
+        setStatus('Adding...');
+        await request(API, 'POST', { title });
+        input.value = '';
+        await loadTodos();
+      } catch (e) {
+        setStatus('Failed to add todo.');
+      }
+    }
+
+    async function deleteTodo(id) {
+      try {
+        setStatus('Deleting...');
+        await request(`${API}/${id}`, 'DELETE');
+        await loadTodos();
+      } catch (e) {
+        setStatus('Failed to delete todo.');
+      }
+    }
+
+    function startEdit(li, todo) {
+      // Replace text + edit button with an input + save button
+      li.innerHTML = '';
+
+      const editInput = document.createElement('input');
+      editInput.className = 'edit-input';
+      editInput.value = todo.title;
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-save';
+      saveBtn.textContent = 'Save';
+      saveBtn.onclick = () => saveEdit(todo.id, editInput.value);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-edit';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = loadTodos;
+
+      li.append(editInput, saveBtn, cancelBtn);
+      editInput.focus();
+    }
+
+    async function saveEdit(id, newTitle) {
+      const title = newTitle.trim();
+      if (!title) return;
+      try {
+        setStatus('Saving...');
+        await request(`${API}/${id}`, 'PUT', { title });
+        await loadTodos();
+      } catch (e) {
+        setStatus('Failed to save edit.');
+      }
+    }
+
+    // Allow pressing Enter to add
+    document.getElementById('new-todo')
+      .addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+
+    // Start
+    loadTodos();
+  </script>
+</body>
+</html>

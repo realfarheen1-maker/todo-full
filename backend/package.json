@@ -1,0 +1,9 @@
+{
+  "name": "todo-backend",
+  "version": "1.0.0",
+  "description": "Simple Node HTTP todo API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
